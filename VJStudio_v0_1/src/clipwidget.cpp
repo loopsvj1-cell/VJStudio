@@ -22,6 +22,7 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
     m_thumbnailLabel->setMinimumHeight(64);
     m_thumbnailLabel->setMaximumHeight(84);
     m_thumbnailLabel->setScaledContents(true);
+    m_thumbnailLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     m_thumbnailLabel->setStyleSheet(
         "QLabel { background: #080a11; color: #777f9b; border: 1px solid #34384a; border-radius: 4px; }");
 
@@ -58,9 +59,10 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
             [this](const QVideoFrame &frame) {
         const QImage image = frame.toImage();
         if (!image.isNull()) {
-            m_thumbnailLabel->setPixmap(
-                QPixmap::fromImage(image).scaled(m_thumbnailLabel->size(),
-                    Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+            // Keep the source pixmap independent of the label geometry.
+            // Scaling to the current label size changes QLabel::sizeHint and
+            // can make the layout grow continuously while frames arrive.
+            m_thumbnailLabel->setPixmap(QPixmap::fromImage(image));
         }
     });
 
