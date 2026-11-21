@@ -22,6 +22,13 @@
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QPainter>
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QResizeEvent>
+#include <QApplication>
+#include <QFrame>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 {
@@ -34,7 +41,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         layer.player = new QMediaPlayer(this);
         layer.audio = new QAudioOutput(this);
         layer.video = new QGraphicsVideoItem();
-        layer.video->setSize(QSizeF(1920, 1080));
+        layer.video->setPos(0, 0);\n        layer.video->setSize(QSizeF(1920, 1080));
         layer.video->setAspectRatioMode(Qt::KeepAspectRatio);
         layer.video->setZValue(i);
         layer.video->setOpacity(i == 0 ? 1.0 : 0.0);
@@ -58,7 +65,22 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 
 void MainWindow::buildUi()
 {
-    setWindowTitle("VJ Studio 0.2 — Multilayer Video");
+    setWindowTitle("VJ Studio 0.3 — Multilayer Video");
+    qApp->setStyleSheet(R"(
+        QWidget { background: #171923; color: #e8eaf2; font-family: "Segoe UI"; font-size: 10pt; }
+        QMainWindow, QDialog { background: #11131b; }
+        QGroupBox { border: 1px solid #34384a; border-radius: 8px; margin-top: 12px; padding: 10px; font-weight: 600; color: #b9a6ff; }
+        QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; }
+        QPushButton { background: #292d3d; border: 1px solid #454b63; border-radius: 6px; padding: 8px 12px; }
+        QPushButton:hover { background: #39345a; border-color: #9274ff; }
+        QPushButton:pressed { background: #6246c7; }
+        QListWidget, QComboBox, QSlider, QGraphicsView { background: #0c0e15; border: 1px solid #34384a; border-radius: 5px; }
+        QComboBox { padding: 6px; }
+        QSlider::groove:horizontal { height: 5px; background: #34384a; border-radius: 2px; }
+        QSlider::handle:horizontal { background: #9b7bff; width: 14px; margin: -5px 0; border-radius: 7px; }
+        QStatusBar { background: #11131b; color: #aeb4c8; }
+        QWidget#clipWidget { background: #202436; border: 1px solid #414760; border-radius: 7px; }
+    )");
     resize(1500, 920);
 
     auto *root = new QWidget(this);
@@ -69,7 +91,11 @@ void MainWindow::buildUi()
     auto *importButton = new QPushButton("Import media");
     auto *loadButton = new QPushButton("Load to selected layer");
     auto *outputButton = new QPushButton("Open Output 1");
+    auto *saveButton = new QPushButton("Save Project");
+    auto *openProjectButton = new QPushButton("Open Project");
     toolbar->addWidget(importButton);
+    toolbar->addWidget(openProjectButton);
+    toolbar->addWidget(saveButton);
     toolbar->addWidget(loadButton);
     toolbar->addStretch();
     toolbar->addWidget(outputButton);
@@ -139,6 +165,8 @@ void MainWindow::buildUi()
     connect(importButton, &QPushButton::clicked, this, &MainWindow::importVideos);
     connect(loadButton, &QPushButton::clicked, this, &MainWindow::loadSelectedMedia);
     connect(outputButton, &QPushButton::clicked, this, &MainWindow::openOutputWindow);
+    connect(saveButton, &QPushButton::clicked, this, &MainWindow::saveProject);
+    connect(openProjectButton, &QPushButton::clicked, this, &MainWindow::openProject);
     connect(m_layerSelector, qOverload<int>(&QComboBox::currentIndexChanged),
             this, &MainWindow::setActiveLayer);
     connect(m_layerPlayButton, &QPushButton::clicked,
@@ -268,6 +296,110 @@ void MainWindow::updatePreviewGeometry()
 {
     if (m_previewView)
         m_previewView->fitInView(m_scene->sceneRect(), Qt::KeepAspectRatio);
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    updatePreviewGeometry();
+}
+
+void MainWindow::saveProject()
+{
+    const QString path = QFileDialog::getSaveFileName(
+        this, "Save VJ Studio project", QString(), "VJ Studio Project (*.vjproj)");
+    if (path.isEmpty())
+        return;
+
+    QJsonObject project;
+    project["format"] = "VJStudioProject";
+    project["version"] = 1;
+    QJsonArray media;
+    for (int i = 0; i < m_library->count(); ++i) {
+        const auto *item = m_library->item(i);
+        media.append(item->data(Qt::UserRole).toString());
+    }
+    project["mediaLibrary"] = media;
+
+    QJsonArray layers;
+    for (const auto &layer : m_layers) {
+        QJsonObject entry;
+        entry["source"] = layer.source.toString();
+        entry["opacity"] = layer.video->opacity();
+        layers.append(entry);
+    }
+    project["layers"] = layers;
+    project["activeLayer"] = m_activeLayer;
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        QMessageBox::warning(this, "Save project", "Could not write the project file.");
+        return;
+    }
+    file.write(QJsonDocument(project).toJson(QJsonDocument::Indented));
+    setStatus("Project saved: " + QFileInfo(path).fileName());
+}
+
+void MainWindow::openProject()
+{
+    const QString path = QFileDialog::getOpenFileName(
+        this, "Open VJ Studio project", QString(), "VJ Studio Project (*.vjproj)");
+    if (path.isEmpty())
+        return;
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, "Open project", "Could not read the project file.");
+        return;
+    }
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()
+        || document.object().value("format").toString() != "VJStudioProject") {
+        QMessageBox::warning(this, "Open project", "This is not a valid VJ Studio project.");
+        return;
+    }
+
+    const QJsonObject project = document.object();
+    m_library->clear();
+    m_nextClip = 0;
+    for (int i = 0; i < m_clipGrid->count(); ++i) {
+        auto *clip = qobject_cast<ClipWidget *>(m_clipGrid->itemAt(i)->widget());
+        if (clip)
+            clip->setMedia(QUrl());
+    }
+
+    const QJsonArray media = project.value("mediaLibrary").toArray();
+    for (const QJsonValue &value : media) {
+        const QUrl url(value.toString());
+        if (!url.isValid())
+            continue;
+        auto *item = new QListWidgetItem(QFileInfo(url.toLocalFile()).fileName(), m_library);
+        item->setData(Qt::UserRole, url.toString());
+        addClip(url);
+    }
+
+    const QJsonArray layers = project.value("layers").toArray();
+    for (int i = 0; i < static_cast<int>(m_layers.size()); ++i) {
+        auto &layer = m_layers[static_cast<size_t>(i)];
+        layer.player->stop();
+        layer.source = QUrl();
+        layer.player->setSource(QUrl());
+        layer.video->setOpacity(0.0);
+        if (i < layers.size()) {
+            const QJsonObject entry = layers.at(i).toObject();
+            const QUrl source(entry.value("source").toString());
+            const qreal opacity = qBound(0.0, entry.value("opacity").toDouble(0.0), 1.0);
+            layer.video->setOpacity(opacity);
+            if (source.isValid() && !source.isEmpty())
+                loadMediaIntoLayer(i, source, false);
+        }
+    }
+
+    const int active = project.value("activeLayer").toInt(0);
+    setActiveLayer(qBound(0, active, static_cast<int>(m_layers.size()) - 1));
+    setStatus("Project opened: " + QFileInfo(path).fileName()
+              + ". Media files must remain in their original locations.");
 }
 
 void MainWindow::setStatus(const QString &message)
