@@ -41,7 +41,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         layer.player = new QMediaPlayer(this);
         layer.audio = new QAudioOutput(this);
         layer.video = new QGraphicsVideoItem();
-        layer.video->setPos(0, 0);\n        layer.video->setSize(QSizeF(1920, 1080));
+        layer.video->setPos(0, 0);
+        layer.video->setSize(QSizeF(1920, 1080));
         layer.video->setAspectRatioMode(Qt::KeepAspectRatio);
         layer.video->setZValue(i);
         layer.video->setOpacity(i == 0 ? 1.0 : 0.0);
