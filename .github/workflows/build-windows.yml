@@ -42,10 +42,17 @@ jobs:
       - name: Deploy Qt runtime
         shell: pwsh
         run: |
-          $qtPath = "${{ steps.qt.outputs.qt-path }}"
           $exe = "build/Release/VJStudio.exe"
           if (!(Test-Path $exe)) { throw "Executable not found: $exe" }
-          & (Join-Path $qtPath "bin/windeployqt.exe") --release --compiler-runtime $exe
+
+          # install-qt-action adds the selected Qt bin directory to PATH.
+          # Its qt-path output is not guaranteed to be populated on every runner version.
+          $deployTool = Get-Command "windeployqt.exe" -ErrorAction SilentlyContinue
+          if (-not $deployTool) {
+            throw "windeployqt.exe was not found on PATH after Qt installation."
+          }
+
+          & $deployTool.Source --release --compiler-runtime $exe
           if ($LASTEXITCODE -ne 0) { throw "windeployqt failed with exit code $LASTEXITCODE" }
 
       - name: Package Windows build
