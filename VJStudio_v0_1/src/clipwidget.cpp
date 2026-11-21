@@ -16,6 +16,7 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
 {
     setObjectName("clipWidget");
     setMinimumSize(130, 112);
+    setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 
     m_thumbnailLabel = new QLabel("VIDEO PREVIEW", this);
     m_thumbnailLabel->setAlignment(Qt::AlignCenter);
@@ -23,6 +24,7 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
     m_thumbnailLabel->setMaximumHeight(84);
     m_thumbnailLabel->setScaledContents(true);
     m_thumbnailLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    m_thumbnailLabel->setMinimumWidth(0);
     m_thumbnailLabel->setStyleSheet(
         "QLabel { background: #080a11; color: #777f9b; border: 1px solid #34384a; border-radius: 4px; }");
 
