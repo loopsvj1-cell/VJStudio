@@ -31,7 +31,7 @@ void ClipWidget::setMedia(const QUrl &url)
 {
     m_url = url;
     m_nameLabel->setText(QFileInfo(url.toLocalFile()).fileName());
-    m_playButton->setEnabled(true);
+    m_playButton->setEnabled(m_url.isValid() && !m_url.isEmpty());
 }
 
 QString ClipWidget::displayName() const
