@@ -150,8 +150,13 @@ void MainWindow::buildUi()
 
     auto *deckBox = new QGroupBox("CLIP DECK — 4 × 2");
     m_clipGrid = new QGridLayout(deckBox);
+    for (int column = 0; column < 4; ++column)
+        m_clipGrid->setColumnStretch(column, 1);
+    for (int row = 0; row < 2; ++row)
+        m_clipGrid->setRowStretch(row, 1);
     for (int i = 0; i < 8; ++i) {
         auto *clip = new ClipWidget(deckBox);
+        clip->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         m_clipGrid->addWidget(clip, i / 4, i % 4);
         connect(clip, &ClipWidget::playRequested, this, [this](const QUrl &url, bool loop) {
             loadMediaIntoLayer(m_activeLayer, url, true, loop);
