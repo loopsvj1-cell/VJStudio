@@ -55,17 +55,20 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
     m_previewPlayer = new QMediaPlayer(this);
     m_videoSink = new QVideoSink(this);
     m_previewPlayer->setVideoSink(m_videoSink);
-    m_previewPlayer->setLoops(QMediaPlayer::Infinite);
 
     connect(m_videoSink, &QVideoSink::videoFrameChanged, this,
             [this](const QVideoFrame &frame) {
         const QImage image = frame.toImage();
-        if (!image.isNull()) {
-            // Store a thumbnail with a fixed pixel size. Using the full video
-            // frame here makes QLabel::sizeHint grow to the video's resolution.
+        if (!image.isNull() && !m_thumbnailCaptured) {
+            // Capture exactly one frame for the static clip-deck thumbnail.
+            // Stop and detach the source immediately so idle clips do not keep
+            // decoding video or consuming GPU/CPU resources in the background.
+            m_thumbnailCaptured = true;
             const QPixmap thumbnail = QPixmap::fromImage(image).scaled(
                 320, 84, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
             m_thumbnailLabel->setPixmap(thumbnail);
+            m_previewPlayer->stop();
+            m_previewPlayer->setSource(QUrl());
         }
     });
 
@@ -78,6 +81,8 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
 void ClipWidget::setMedia(const QUrl &url)
 {
     m_previewPlayer->stop();
+    m_previewPlayer->setSource(QUrl());
+    m_thumbnailCaptured = false;
     m_url = url;
     m_thumbnailLabel->setPixmap(QPixmap());
     if (!m_url.isValid() || m_url.isEmpty()) {
