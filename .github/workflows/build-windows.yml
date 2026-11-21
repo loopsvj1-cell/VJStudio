@@ -67,3 +67,5 @@ jobs:
           path: VJStudio-Windows-x64.zip
           if-no-files-found: error
           retention-days: 14
+
+# CI refresh after clip preview and loop controls update.
