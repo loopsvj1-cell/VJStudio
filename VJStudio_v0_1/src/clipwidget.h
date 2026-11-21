@@ -30,4 +30,5 @@ private:
     QCheckBox *m_loopCheck = nullptr;
     QMediaPlayer *m_previewPlayer = nullptr;
     QVideoSink *m_videoSink = nullptr;
+    bool m_thumbnailCaptured = false;
 };
