@@ -21,7 +21,7 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
     m_thumbnailLabel = new QLabel("VIDEO PREVIEW", this);
     m_thumbnailLabel->setAlignment(Qt::AlignCenter);
     m_thumbnailLabel->setMinimumHeight(64);
-    m_thumbnailLabel->setMaximumHeight(84);
+    m_thumbnailLabel->setFixedHeight(84);
     m_thumbnailLabel->setScaledContents(true);
     m_thumbnailLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     m_thumbnailLabel->setMinimumWidth(0);
@@ -61,10 +61,11 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
             [this](const QVideoFrame &frame) {
         const QImage image = frame.toImage();
         if (!image.isNull()) {
-            // Keep the source pixmap independent of the label geometry.
-            // Scaling to the current label size changes QLabel::sizeHint and
-            // can make the layout grow continuously while frames arrive.
-            m_thumbnailLabel->setPixmap(QPixmap::fromImage(image));
+            // Store a thumbnail with a fixed pixel size. Using the full video
+            // frame here makes QLabel::sizeHint grow to the video's resolution.
+            const QPixmap thumbnail = QPixmap::fromImage(image).scaled(
+                320, 84, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            m_thumbnailLabel->setPixmap(thumbnail);
         }
     });
 
