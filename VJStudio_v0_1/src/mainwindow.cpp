@@ -29,6 +29,8 @@
 #include <QResizeEvent>
 #include <QApplication>
 #include <QFrame>
+#include <QShortcut>
+#include <QKeySequence>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 {
@@ -156,11 +158,27 @@ void MainWindow::buildUi()
         m_clipGrid->setRowStretch(row, 1);
     for (int i = 0; i < 8; ++i) {
         auto *clip = new ClipWidget(deckBox);
+        clip->setSlotNumber(i + 1);
         clip->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         m_clipGrid->addWidget(clip, i / 4, i % 4);
         connect(clip, &ClipWidget::playRequested, this, [this](const QUrl &url, bool loop) {
             loadMediaIntoLayer(m_activeLayer, url, true, loop);
         });
+        connect(clip, &ClipWidget::mediaDropped, this, [this, clip](const QUrl &url) {
+            clip->setMedia(url);
+            setStatus(QString("Clip loaded: %1").arg(QFileInfo(url.toLocalFile()).fileName()));
+        });
+        connect(clip, &ClipWidget::selected, this, [this](ClipWidget *selectedClip) {
+            for (int slot = 0; slot < m_clipGrid->count(); ++slot) {
+                auto *item = qobject_cast<ClipWidget *>(m_clipGrid->itemAt(slot)->widget());
+                if (item)
+                    item->setStyleSheet(item == selectedClip
+                        ? "QWidget#clipWidget { border: 2px solid #a78bfa; background: #292642; border-radius: 7px; }"
+                        : "");
+            }
+        });
+        auto *shortcut = new QShortcut(QKeySequence(QString::number(i + 1)), this);
+        connect(shortcut, &QShortcut::activated, clip, &ClipWidget::triggerPlay);
     }
     mainLayout->addWidget(deckBox, 2);
 
