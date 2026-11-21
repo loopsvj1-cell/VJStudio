@@ -42,11 +42,12 @@ private:
         QAudioOutput *audio = nullptr;
         QGraphicsVideoItem *video = nullptr;
         QUrl source;
+        bool loop = false;
     };
 
     void buildUi();
     void addClip(const QUrl &url);
-    void loadMediaIntoLayer(int layerIndex, const QUrl &url, bool startPlayback);
+    void loadMediaIntoLayer(int layerIndex, const QUrl &url, bool startPlayback, bool loop = false);
     void setActiveLayer(int index);
     void setStatus(const QString &message);
     void updatePreviewGeometry();

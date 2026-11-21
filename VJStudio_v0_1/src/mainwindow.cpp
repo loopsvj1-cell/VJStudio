@@ -153,8 +153,8 @@ void MainWindow::buildUi()
     for (int i = 0; i < 8; ++i) {
         auto *clip = new ClipWidget(deckBox);
         m_clipGrid->addWidget(clip, i / 4, i % 4);
-        connect(clip, &ClipWidget::playRequested, this, [this](const QUrl &url) {
-            loadMediaIntoLayer(m_activeLayer, url, true);
+        connect(clip, &ClipWidget::playRequested, this, [this](const QUrl &url, bool loop) {
+            loadMediaIntoLayer(m_activeLayer, url, true, loop);
         });
     }
     mainLayout->addWidget(deckBox, 2);
@@ -223,7 +223,7 @@ void MainWindow::loadSelectedMedia()
     loadMediaIntoLayer(m_activeLayer, QUrl(item->data(Qt::UserRole).toString()), true);
 }
 
-void MainWindow::loadMediaIntoLayer(int layerIndex, const QUrl &url, bool startPlayback)
+void MainWindow::loadMediaIntoLayer(int layerIndex, const QUrl &url, bool startPlayback, bool loop)
 {
     if (layerIndex < 0 || layerIndex >= static_cast<int>(m_layers.size()) || !url.isValid())
         return;
@@ -231,6 +231,8 @@ void MainWindow::loadMediaIntoLayer(int layerIndex, const QUrl &url, bool startP
     auto &layer = m_layers[static_cast<size_t>(layerIndex)];
     layer.player->stop();
     layer.source = url;
+    layer.loop = loop;
+    layer.player->setLoops(loop ? QMediaPlayer::Infinite : 1);
     layer.player->setSource(url);
     if (startPlayback)
         layer.player->play();
@@ -327,6 +329,7 @@ void MainWindow::saveProject()
         QJsonObject entry;
         entry["source"] = layer.source.toString();
         entry["opacity"] = layer.video->opacity();
+        entry["loop"] = layer.loop;
         layers.append(entry);
     }
     project["layers"] = layers;
@@ -393,7 +396,7 @@ void MainWindow::openProject()
             const qreal opacity = qBound(0.0, entry.value("opacity").toDouble(0.0), 1.0);
             layer.video->setOpacity(opacity);
             if (source.isValid() && !source.isEmpty())
-                loadMediaIntoLayer(i, source, false);
+                loadMediaIntoLayer(i, source, false, entry.value("loop").toBool(false));
         }
     }
 
