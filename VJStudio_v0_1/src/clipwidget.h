@@ -2,6 +2,8 @@
 
 #include <QWidget>
 #include <QUrl>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 
 class QLabel;
 class QPushButton;
@@ -18,9 +20,17 @@ public:
     void setMedia(const QUrl &url);
     QUrl media() const { return m_url; }
     QString displayName() const;
+    void setSlotNumber(int number);
+    void triggerPlay();
+
+protected:
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
 
 signals:
     void playRequested(const QUrl &url, bool loop);
+    void mediaDropped(const QUrl &url);
+    void selected(ClipWidget *clip);
 
 private:
     QUrl m_url;
