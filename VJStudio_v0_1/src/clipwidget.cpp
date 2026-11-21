@@ -11,10 +11,14 @@
 #include <QVideoFrame>
 #include <QImage>
 #include <QPixmap>
+#include <QMimeData>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 
 ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
 {
     setObjectName("clipWidget");
+    setAcceptDrops(true);
     setMinimumSize(130, 112);
     setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 
@@ -72,10 +76,7 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
         }
     });
 
-    connect(m_playButton, &QPushButton::clicked, this, [this] {
-        if (m_url.isValid() && !m_url.isEmpty())
-            emit playRequested(m_url, m_loopCheck->isChecked());
-    });
+    connect(m_playButton, &QPushButton::clicked, this, [this] { triggerPlay(); });
 }
 
 void ClipWidget::setMedia(const QUrl &url)
@@ -102,4 +103,36 @@ void ClipWidget::setMedia(const QUrl &url)
 QString ClipWidget::displayName() const
 {
     return m_url.isValid() ? QFileInfo(m_url.toLocalFile()).fileName() : "Empty clip";
+}
+
+void ClipWidget::setSlotNumber(int number)
+{
+    m_playButton->setText(QString("%1  PLAY").arg(number));
+}
+
+void ClipWidget::triggerPlay()
+{
+    if (m_url.isValid() && !m_url.isEmpty()) {
+        emit selected(this);
+        emit playRequested(m_url, m_loopCheck->isChecked());
+    }
+}
+
+void ClipWidget::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasUrls())
+        event->acceptProposedAction();
+    else
+        event->ignore();
+}
+
+void ClipWidget::dropEvent(QDropEvent *event)
+{
+    const QList<QUrl> urls = event->mimeData()->urls();
+    if (!urls.isEmpty() && urls.first().isLocalFile()) {
+        emit mediaDropped(urls.first());
+        event->acceptProposedAction();
+    } else {
+        event->ignore();
+    }
 }
