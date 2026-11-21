@@ -16,6 +16,7 @@ class ClipWidget;
 class QSlider;
 class QComboBox;
 class QPushButton;
+class QResizeEvent;
 
 class MainWindow : public QMainWindow
 {
@@ -23,12 +24,17 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
 
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
 private slots:
     void importVideos();
     void loadSelectedMedia();
     void toggleSelectedLayerPlayback();
     void stopSelectedLayer();
     void openOutputWindow();
+    void saveProject();
+    void openProject();
 
 private:
     struct Layer {
