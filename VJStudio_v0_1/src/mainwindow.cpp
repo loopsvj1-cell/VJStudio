@@ -40,7 +40,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         layer.video->setOpacity(i == 0 ? 1.0 : 0.0);
         m_scene->addItem(layer.video);
         layer.player->setAudioOutput(layer.audio);
-        layer.player->setVideoOutput(layer.video->videoSink());
+        layer.player->setVideoOutput(layer.video);
 
         connect(layer.player, &QMediaPlayer::errorOccurred, this,
                 [this, i](QMediaPlayer::Error, const QString &error) {
