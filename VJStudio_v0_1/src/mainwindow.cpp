@@ -49,6 +49,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         layer.video->setZValue(i);
         layer.video->setOpacity(i == 0 ? 1.0 : 0.0);
         m_scene->addItem(layer.video);
+        layer.audio->setVolume(1.0);
+        layer.audio->setMuted(false);
         layer.player->setAudioOutput(layer.audio);
         layer.player->setVideoOutput(layer.video);
 
@@ -142,7 +144,14 @@ void MainWindow::buildUi()
     m_opacitySlider->setValue(100);
     mixerLayout->addWidget(m_opacitySlider);
     mixerLayout->addSpacing(12);
-    mixerLayout->addWidget(new QLabel("Each layer has its own media player and audio output."));
+    mixerLayout->addWidget(new QLabel("Master audio volume"));
+    m_volumeSlider = new QSlider(Qt::Horizontal);
+    m_volumeSlider->setRange(0, 100);
+    m_volumeSlider->setValue(100);
+    mixerLayout->addWidget(m_volumeSlider);
+    m_muteButton = new QPushButton("Mute audio");
+    mixerLayout->addWidget(m_muteButton);
+    mixerLayout->addWidget(new QLabel("Audio is routed through the selected layer player."));
     mixerLayout->addStretch();
     mixerBox->setMinimumWidth(210);
     topSplitter->addWidget(mixerBox);
@@ -196,6 +205,19 @@ void MainWindow::buildUi()
     connect(m_layerPlayButton, &QPushButton::clicked,
             this, &MainWindow::toggleSelectedLayerPlayback);
     connect(stopButton, &QPushButton::clicked, this, &MainWindow::stopSelectedLayer);
+    connect(m_volumeSlider, &QSlider::valueChanged, this, [this](int value) {
+        const qreal volume = value / 100.0;
+        for (auto &layer : m_layers)
+            layer.audio->setVolume(volume);
+        setStatus(QString("Master audio volume: %1%").arg(value));
+    });
+    connect(m_muteButton, &QPushButton::clicked, this, [this]() {
+        m_audioMuted = !m_audioMuted;
+        for (auto &layer : m_layers)
+            layer.audio->setMuted(m_audioMuted);
+        m_muteButton->setText(m_audioMuted ? "Unmute audio" : "Mute audio");
+        setStatus(m_audioMuted ? "Audio muted." : "Audio enabled.");
+    });
     connect(m_opacitySlider, &QSlider::valueChanged, this, [this](int value) {
         m_layers[static_cast<size_t>(m_activeLayer)].video->setOpacity(value / 100.0);
         if (m_outputView)

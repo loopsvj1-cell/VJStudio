@@ -61,6 +61,9 @@ private:
     QComboBox *m_layerSelector = nullptr;
     QSlider *m_opacitySlider = nullptr;
     QPushButton *m_layerPlayButton = nullptr;
+    QSlider *m_volumeSlider = nullptr;
+    QPushButton *m_muteButton = nullptr;
+    bool m_audioMuted = false;
     QWidget *m_outputWindow = nullptr;
     QGraphicsView *m_outputView = nullptr;
     int m_activeLayer = 0;
