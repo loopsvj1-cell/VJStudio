@@ -69,7 +69,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
             if (currentLayer.activeClip)
                 currentLayer.activeClip->setPlaybackProgress(currentLayer.player->position(), duration);
         });
-        connect(layer.player, &QMediaPlayer::audioAvailableChanged, this,
+        connect(layer.player, &QMediaPlayer::hasAudioChanged, this,
                 [this, i](bool available) {
             if (i == m_activeLayer && m_audioStatus)
                 m_audioStatus->setText(available ? "Audio track detected" : "No audio track detected yet");
