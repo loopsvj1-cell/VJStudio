@@ -35,7 +35,7 @@ protected:
     void dropEvent(QDropEvent *event) override;
 
 signals:
-    void playRequested(const QUrl &url, bool loop);
+    void playRequested(const QUrl &url, bool loop, qint64 inPoint, qint64 outPoint);
     void mediaDropped(const QUrl &url);
     void selected(ClipWidget *clip);
     void markInRequested(ClipWidget *clip);
