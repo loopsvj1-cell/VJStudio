@@ -25,11 +25,9 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
 
     m_thumbnailLabel = new QLabel("VIDEO PREVIEW", this);
     m_thumbnailLabel->setAlignment(Qt::AlignCenter);
-    m_thumbnailLabel->setMinimumHeight(64);
-    m_thumbnailLabel->setFixedHeight(42);
+    m_thumbnailLabel->setFixedSize(160, 42);
     m_thumbnailLabel->setScaledContents(true);
-    m_thumbnailLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-    m_thumbnailLabel->setMinimumWidth(0);
+    m_thumbnailLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     m_thumbnailLabel->setStyleSheet(
         "QLabel { background: #080a11; color: #777f9b; border: 1px solid #34384a; border-radius: 4px; }");
 
@@ -56,6 +54,7 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
     m_marksLabel->setStyleSheet("QLabel { color: #b9a6ff; font-size: 8pt; }");
     m_inButton = new QPushButton("SET IN", this);
     m_outButton = new QPushButton("SET OUT", this);
+    m_clearMarksButton = new QPushButton("CLEAR", this);
     m_inButton->setEnabled(false);
     m_outButton->setEnabled(false);
     m_inButton->setToolTip("Set the start point at the current playback position");
@@ -64,6 +63,7 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
     markControls->setContentsMargins(0, 0, 0, 0);
     markControls->addWidget(m_inButton);
     markControls->addWidget(m_outButton);
+    markControls->addWidget(m_clearMarksButton);
 
     m_loopCheck = new QCheckBox("LOOP", this);
     m_loopCheck->setChecked(true);
@@ -77,7 +77,12 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(6, 6, 6, 6);
     layout->setSpacing(4);
-    layout->addWidget(m_thumbnailLabel, 1);
+    auto *thumbnailRow = new QHBoxLayout;
+    thumbnailRow->setContentsMargins(0, 0, 0, 0);
+    thumbnailRow->addStretch();
+    thumbnailRow->addWidget(m_thumbnailLabel);
+    thumbnailRow->addStretch();
+    layout->addLayout(thumbnailRow);
     layout->addWidget(m_nameLabel);
     layout->addWidget(m_progressBar);
     layout->addWidget(m_timeLabel);
@@ -98,7 +103,7 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
             // decoding video or consuming GPU/CPU resources in the background.
             m_thumbnailCaptured = true;
             const QPixmap thumbnail = QPixmap::fromImage(image).scaled(
-                320, 84, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+                160, 42, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
             m_thumbnailLabel->setPixmap(thumbnail);
             m_previewPlayer->stop();
             m_previewPlayer->setSource(QUrl());
@@ -108,6 +113,7 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
     connect(m_playButton, &QPushButton::clicked, this, [this] { triggerPlay(); });
     connect(m_inButton, &QPushButton::clicked, this, [this] { emit markInRequested(this); });
     connect(m_outButton, &QPushButton::clicked, this, [this] { emit markOutRequested(this); });
+    connect(m_clearMarksButton, &QPushButton::clicked, this, [this] { emit clearMarksRequested(this); });
 }
 
 void ClipWidget::setMedia(const QUrl &url)
@@ -123,6 +129,7 @@ void ClipWidget::setMedia(const QUrl &url)
         m_playButton->setEnabled(false);
         m_inButton->setEnabled(false);
         m_outButton->setEnabled(false);
+        m_clearMarksButton->setEnabled(false);
         m_inPoint = 0;
         m_outPoint = -1;
         m_duration = 0;
@@ -136,6 +143,7 @@ void ClipWidget::setMedia(const QUrl &url)
     m_playButton->setEnabled(true);
     m_inButton->setEnabled(true);
     m_outButton->setEnabled(true);
+    m_clearMarksButton->setEnabled(true);
     m_inPoint = 0;
     m_outPoint = -1;
     m_duration = 0;
@@ -198,6 +206,13 @@ void ClipWidget::setOutPoint(qint64 position)
     m_outPoint = qBound<qint64>(m_inPoint + 1, position, limit);
     const auto fmt = [](qint64 ms) { const qint64 s = ms / 1000; return QString("%1:%2").arg(s / 60, 2, 10, QLatin1Char('0')).arg(s % 60, 2, 10, QLatin1Char('0')); };
     m_marksLabel->setText("IN " + fmt(m_inPoint) + "  |  OUT " + fmt(m_outPoint));
+}
+
+void ClipWidget::clearMarks()
+{
+    m_inPoint = 0;
+    m_outPoint = -1;
+    m_marksLabel->setText("IN 00:00  |  OUT END");
 }
 
 void ClipWidget::triggerPlay()

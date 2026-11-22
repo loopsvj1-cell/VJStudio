@@ -5,6 +5,7 @@
 #include <QAudioOutput>
 #include <QAudioDevice>
 #include <QMediaDevices>
+#include <QAudio>
 #include <QGraphicsVideoItem>
 #include <QGraphicsScene>
 #include <QGraphicsView>
@@ -82,7 +83,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         connect(layer.player, &QMediaPlayer::hasAudioChanged, this,
                 [this, i](bool available) {
             if (i == m_activeLayer && m_audioStatus)
-                m_audioStatus->setText(available ? "Audio track detected" : "No audio track detected yet");
+                m_audioStatus->setText(available ? "Audio track detected; checking output..." : "No audio track detected");
+        });
+        connect(layer.audio, &QAudioOutput::stateChanged, this,
+                [this, i, audio = layer.audio](QAudio::State state) {
+            if (i != m_activeLayer || !m_audioStatus)
+                return;
+            if (audio->error() != QAudio::NoError) {
+                m_audioStatus->setText(QString("Audio output error (%1)").arg(static_cast<int>(audio->error())));
+            } else if (state == QAudio::ActiveState) {
+                m_audioStatus->setText("Audio output ACTIVE");
+            } else if (m_layers[static_cast<size_t>(i)].player->hasAudio()) {
+                m_audioStatus->setText("Audio track found; output not active");
+            }
         });
         connect(layer.player, &QMediaPlayer::errorOccurred, this,
                 [this, i](QMediaPlayer::Error, const QString &error) {
@@ -91,9 +104,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         connect(layer.player, &QMediaPlayer::mediaStatusChanged, this,
                 [this, i](QMediaPlayer::MediaStatus status) {
             auto &statusLayer = m_layers[static_cast<size_t>(i)];
-            if (status == QMediaPlayer::LoadedMedia && statusLayer.seekPending) {
-                statusLayer.seekPending = false;
-                statusLayer.player->setPosition(statusLayer.inPoint);
+            if (status == QMediaPlayer::LoadedMedia) {
+                if (i == m_activeLayer && m_audioStatus) {
+                    m_audioStatus->setText(statusLayer.player->hasAudio()
+                        ? "Media loaded: audio track detected"
+                        : "Media loaded: NO audio track detected");
+                }
+                if (statusLayer.seekPending) {
+                    statusLayer.seekPending = false;
+                    statusLayer.player->setPosition(statusLayer.inPoint);
+                }
             }
             if (status == QMediaPlayer::EndOfMedia) {
                 setStatus(QString("Layer %1 reached end of clip").arg(i + 1));
@@ -243,10 +263,24 @@ void MainWindow::buildUi()
             auto &layer = m_layers[static_cast<size_t>(m_activeLayer)];
             if (layer.source == target->media() && layer.player->duration() > 0) {
                 target->setOutPoint(layer.player->position());
+                layer.outPoint = target->outPoint();
+                layer.player->setLoops(layer.loop && layer.outPoint < 0 ? QMediaPlayer::Infinite : 1);
                 setStatus("OUT point marked at current playback position.");
             } else {
                 setStatus("Play this clip on the selected layer before marking OUT.");
             }
+        });
+        connect(clip, &ClipWidget::clearMarksRequested, this, [this](ClipWidget *target) {
+            target->clearMarks();
+            auto &layer = m_layers[static_cast<size_t>(m_activeLayer)];
+            if (layer.source == target->media()) {
+                layer.inPoint = 0;
+                layer.outPoint = -1;
+                layer.seekPending = false;
+                layer.player->setLoops(layer.loop ? QMediaPlayer::Infinite : 1);
+                layer.player->setPosition(0);
+            }
+            setStatus("IN/OUT cleared — full video restored through its end.");
         });
         connect(clip, &ClipWidget::mediaDropped, this, [this, clip](const QUrl &url) {
             clip->setMedia(url);
@@ -374,8 +408,10 @@ void MainWindow::loadMediaIntoLayer(int layerIndex, const QUrl &url, bool startP
     layer.inPoint = qMax<qint64>(0, inPoint);
     layer.outPoint = outPoint;
     layer.seekPending = layer.inPoint > 0;
-    layer.player->setLoops(loop ? QMediaPlayer::Infinite : 1);
+    layer.player->setLoops(loop && outPoint < 0 ? QMediaPlayer::Infinite : 1);
     layer.player->setSource(url);
+    layer.audio->setMuted(m_audioMuted);
+    layer.audio->setVolume(m_volumeSlider ? m_volumeSlider->value() / 100.0 : 1.0);
     if (layer.inPoint == 0)
         layer.player->setPosition(0);
     if (startPlayback)
@@ -386,7 +422,7 @@ void MainWindow::loadMediaIntoLayer(int layerIndex, const QUrl &url, bool startP
     if (m_layerSelector->currentIndex() == layerIndex)
         m_layerPlayButton->setText(startPlayback ? "Pause layer" : "Play layer");
     if (m_audioStatus && layerIndex == m_activeLayer)
-        m_audioStatus->setText("Checking audio track...");
+        m_audioStatus->setText("Loading media and checking audio track...");
 }
 
 void MainWindow::setActiveLayer(int index)

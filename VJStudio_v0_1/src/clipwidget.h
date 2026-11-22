@@ -26,6 +26,7 @@ public:
     void setPlaybackProgress(qint64 position, qint64 duration);
     void setInPoint(qint64 position);
     void setOutPoint(qint64 position);
+    void clearMarks();
     qint64 inPoint() const { return m_inPoint; }
     qint64 outPoint() const { return m_outPoint; }
     void triggerPlay();
@@ -40,6 +41,7 @@ signals:
     void selected(ClipWidget *clip);
     void markInRequested(ClipWidget *clip);
     void markOutRequested(ClipWidget *clip);
+    void clearMarksRequested(ClipWidget *clip);
 
 private:
     QUrl m_url;
@@ -51,6 +53,7 @@ private:
     QLabel *m_marksLabel = nullptr;
     QPushButton *m_inButton = nullptr;
     QPushButton *m_outButton = nullptr;
+    QPushButton *m_clearMarksButton = nullptr;
     QCheckBox *m_loopCheck = nullptr;
     QMediaPlayer *m_previewPlayer = nullptr;
     QVideoSink *m_videoSink = nullptr;
