@@ -81,7 +81,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 
 void MainWindow::buildUi()
 {
-    setWindowTitle("VJ Studio 0.3 — Multilayer Video");
+    setWindowTitle("VJ Studio 0.5 — Multilayer Video");
     qApp->setStyleSheet(R"(
         QWidget { background: #171923; color: #e8eaf2; font-family: "Segoe UI"; font-size: 10pt; }
         QMainWindow, QDialog { background: #11131b; }
