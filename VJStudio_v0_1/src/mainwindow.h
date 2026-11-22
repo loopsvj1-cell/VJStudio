@@ -43,6 +43,7 @@ private:
         QGraphicsVideoItem *video = nullptr;
         QUrl source;
         bool loop = false;
+        ClipWidget *activeClip = nullptr;
     };
 
     void buildUi();

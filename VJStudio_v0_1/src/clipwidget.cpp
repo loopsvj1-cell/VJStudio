@@ -14,6 +14,7 @@
 #include <QMimeData>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QProgressBar>
 
 ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
 {
@@ -40,6 +41,16 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
     m_playButton = new QPushButton("PLAY", this);
     m_playButton->setEnabled(false);
 
+    m_progressBar = new QProgressBar(this);
+    m_progressBar->setRange(0, 1000);
+    m_progressBar->setValue(0);
+    m_progressBar->setTextVisible(false);
+    m_progressBar->setFixedHeight(7);
+    m_progressBar->setStyleSheet("QProgressBar { background: #0c0e15; border: 0; border-radius: 3px; } QProgressBar::chunk { background: #9b7bff; border-radius: 3px; }");
+    m_timeLabel = new QLabel("00:00 / 00:00", this);
+    m_timeLabel->setAlignment(Qt::AlignCenter);
+    m_timeLabel->setStyleSheet("QLabel { color: #aeb4c8; font-size: 8pt; }");
+
     m_loopCheck = new QCheckBox("LOOP", this);
     m_loopCheck->setChecked(true);
     m_loopCheck->setToolTip("Repeat this clip when it reaches the end");
@@ -54,6 +65,8 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
     layout->setSpacing(4);
     layout->addWidget(m_thumbnailLabel, 1);
     layout->addWidget(m_nameLabel);
+    layout->addWidget(m_progressBar);
+    layout->addWidget(m_timeLabel);
     layout->addLayout(controls);
 
     m_previewPlayer = new QMediaPlayer(this);
@@ -90,12 +103,14 @@ void ClipWidget::setMedia(const QUrl &url)
         m_thumbnailLabel->setText("VIDEO PREVIEW");
         m_nameLabel->setText("Empty clip");
         m_playButton->setEnabled(false);
+        setPlaybackProgress(0, 0);
         return;
     }
 
     m_thumbnailLabel->setText("Loading preview...");
     m_nameLabel->setText(QFileInfo(url.toLocalFile()).fileName());
     m_playButton->setEnabled(true);
+    setPlaybackProgress(0, 0);
     m_previewPlayer->setSource(url);
     m_previewPlayer->play();
 }
@@ -114,6 +129,23 @@ void ClipWidget::setSlotNumber(int number)
 void ClipWidget::setPlaying(bool playing)
 {
     m_playButton->setText(QString("%1  %2").arg(m_slotNumber).arg(playing ? "PLAYING" : "PLAY"));
+}
+
+void ClipWidget::setPlaybackProgress(qint64 position, qint64 duration)
+{
+    if (duration <= 0) {
+        m_progressBar->setValue(0);
+        m_timeLabel->setText("00:00 / --:--");
+        return;
+    }
+    const auto formatTime = [](qint64 milliseconds) {
+        const qint64 seconds = qMax<qint64>(0, milliseconds) / 1000;
+        return QString("%1:%2").arg(seconds / 60, 2, 10, QLatin1Char('0'))
+                               .arg(seconds % 60, 2, 10, QLatin1Char('0'));
+    };
+    const qint64 boundedPosition = qBound<qint64>(0, position, duration);
+    m_progressBar->setValue(static_cast<int>((boundedPosition * 1000) / duration));
+    m_timeLabel->setText(formatTime(boundedPosition) + " / " + formatTime(duration));
 }
 
 void ClipWidget::triggerPlay()

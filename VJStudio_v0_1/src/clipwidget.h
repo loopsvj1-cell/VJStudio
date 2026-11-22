@@ -10,6 +10,7 @@ class QPushButton;
 class QCheckBox;
 class QMediaPlayer;
 class QVideoSink;
+class QProgressBar;
 
 class ClipWidget : public QWidget
 {
@@ -22,6 +23,7 @@ public:
     QString displayName() const;
     void setSlotNumber(int number);
     void setPlaying(bool playing);
+    void setPlaybackProgress(qint64 position, qint64 duration);
     void triggerPlay();
 
 protected:
@@ -38,6 +40,8 @@ private:
     QLabel *m_thumbnailLabel = nullptr;
     QLabel *m_nameLabel = nullptr;
     QPushButton *m_playButton = nullptr;
+    QProgressBar *m_progressBar = nullptr;
+    QLabel *m_timeLabel = nullptr;
     QCheckBox *m_loopCheck = nullptr;
     QMediaPlayer *m_previewPlayer = nullptr;
     QVideoSink *m_videoSink = nullptr;

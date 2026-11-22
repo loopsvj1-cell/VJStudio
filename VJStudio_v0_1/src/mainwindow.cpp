@@ -57,6 +57,18 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         layer.player->setAudioOutput(layer.audio);
         layer.player->setVideoOutput(layer.video);
 
+        connect(layer.player, &QMediaPlayer::positionChanged, this,
+                [this, i](qint64 position) {
+            auto &currentLayer = m_layers[static_cast<size_t>(i)];
+            if (currentLayer.activeClip)
+                currentLayer.activeClip->setPlaybackProgress(position, currentLayer.player->duration());
+        });
+        connect(layer.player, &QMediaPlayer::durationChanged, this,
+                [this, i](qint64 duration) {
+            auto &currentLayer = m_layers[static_cast<size_t>(i)];
+            if (currentLayer.activeClip)
+                currentLayer.activeClip->setPlaybackProgress(currentLayer.player->position(), duration);
+        });
         connect(layer.player, &QMediaPlayer::audioAvailableChanged, this,
                 [this, i](bool available) {
             if (i == m_activeLayer && m_audioStatus)
@@ -70,8 +82,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
                 [this, i](QMediaPlayer::MediaStatus status) {
             if (status == QMediaPlayer::EndOfMedia) {
                 setStatus(QString("Layer %1 reached end of clip").arg(i + 1));
-                if (i == m_activeLayer && m_activeClip)
-                    m_activeClip->setPlaying(false);
+                auto &endedLayer = m_layers[static_cast<size_t>(i)];
+                if (!endedLayer.loop && endedLayer.activeClip) {
+                    endedLayer.activeClip->setPlaying(false);
+                    endedLayer.activeClip->setPlaybackProgress(
+                        endedLayer.player->duration(), endedLayer.player->duration());
+                }
             }
         });
     }
@@ -195,7 +211,8 @@ void MainWindow::buildUi()
         clip->setSlotNumber(i + 1);
         clip->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         m_clipGrid->addWidget(clip, i / 4, i % 4);
-        connect(clip, &ClipWidget::playRequested, this, [this](const QUrl &url, bool loop) {
+        connect(clip, &ClipWidget::playRequested, this, [this, clip](const QUrl &url, bool loop) {
+            m_layers[static_cast<size_t>(m_activeLayer)].activeClip = clip;
             loadMediaIntoLayer(m_activeLayer, url, true, loop);
         });
         connect(clip, &ClipWidget::mediaDropped, this, [this, clip](const QUrl &url) {
@@ -317,6 +334,8 @@ void MainWindow::loadMediaIntoLayer(int layerIndex, const QUrl &url, bool startP
 
     auto &layer = m_layers[static_cast<size_t>(layerIndex)];
     layer.player->stop();
+    if (layer.activeClip && layer.activeClip->media() != url)
+        layer.activeClip = nullptr;
     layer.source = url;
     layer.loop = loop;
     layer.player->setLoops(loop ? QMediaPlayer::Infinite : 1);
