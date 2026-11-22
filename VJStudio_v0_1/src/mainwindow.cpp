@@ -5,7 +5,6 @@
 #include <QAudioOutput>
 #include <QAudioDevice>
 #include <QMediaDevices>
-#include <QAudio>
 #include <QGraphicsVideoItem>
 #include <QGraphicsScene>
 #include <QGraphicsView>
@@ -85,21 +84,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
             if (i == m_activeLayer && m_audioStatus)
                 m_audioStatus->setText(available ? "Audio track detected; checking output..." : "No audio track detected");
         });
-        connect(layer.audio, &QAudioOutput::stateChanged, this,
-                [this, i, audio = layer.audio](QAudio::State state) {
-            if (i != m_activeLayer || !m_audioStatus)
-                return;
-            if (audio->error() != QAudio::NoError) {
-                m_audioStatus->setText(QString("Audio output error (%1)").arg(static_cast<int>(audio->error())));
-            } else if (state == QAudio::ActiveState) {
-                m_audioStatus->setText("Audio output ACTIVE");
-            } else if (m_layers[static_cast<size_t>(i)].player->hasAudio()) {
-                m_audioStatus->setText("Audio track found; output not active");
-            }
-        });
         connect(layer.player, &QMediaPlayer::errorOccurred, this,
-                [this, i](QMediaPlayer::Error, const QString &error) {
-            setStatus(QString("Layer %1 playback error: %2").arg(i + 1).arg(error));
+                [this, i](QMediaPlayer::Error errorCode, const QString &error) {
+            const QString message = QString("Layer %1 playback error (%2): %3")
+                .arg(i + 1).arg(static_cast<int>(errorCode)).arg(error);
+            setStatus(message);
+            if (i == m_activeLayer && m_audioStatus)
+                m_audioStatus->setText(message);
         });
         connect(layer.player, &QMediaPlayer::mediaStatusChanged, this,
                 [this, i](QMediaPlayer::MediaStatus status) {
