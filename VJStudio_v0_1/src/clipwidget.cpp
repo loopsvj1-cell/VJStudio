@@ -26,7 +26,7 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
     m_thumbnailLabel = new QLabel("VIDEO PREVIEW", this);
     m_thumbnailLabel->setAlignment(Qt::AlignCenter);
     m_thumbnailLabel->setMinimumHeight(64);
-    m_thumbnailLabel->setFixedHeight(84);
+    m_thumbnailLabel->setFixedHeight(42);
     m_thumbnailLabel->setScaledContents(true);
     m_thumbnailLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     m_thumbnailLabel->setMinimumWidth(0);
@@ -51,6 +51,20 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
     m_timeLabel->setAlignment(Qt::AlignCenter);
     m_timeLabel->setStyleSheet("QLabel { color: #aeb4c8; font-size: 8pt; }");
 
+    m_marksLabel = new QLabel("IN 00:00  |  OUT END", this);
+    m_marksLabel->setAlignment(Qt::AlignCenter);
+    m_marksLabel->setStyleSheet("QLabel { color: #b9a6ff; font-size: 8pt; }");
+    m_inButton = new QPushButton("SET IN", this);
+    m_outButton = new QPushButton("SET OUT", this);
+    m_inButton->setEnabled(false);
+    m_outButton->setEnabled(false);
+    m_inButton->setToolTip("Set the start point at the current playback position");
+    m_outButton->setToolTip("Set the end point at the current playback position");
+    auto *markControls = new QHBoxLayout;
+    markControls->setContentsMargins(0, 0, 0, 0);
+    markControls->addWidget(m_inButton);
+    markControls->addWidget(m_outButton);
+
     m_loopCheck = new QCheckBox("LOOP", this);
     m_loopCheck->setChecked(true);
     m_loopCheck->setToolTip("Repeat this clip when it reaches the end");
@@ -67,6 +81,8 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
     layout->addWidget(m_nameLabel);
     layout->addWidget(m_progressBar);
     layout->addWidget(m_timeLabel);
+    layout->addWidget(m_marksLabel);
+    layout->addLayout(markControls);
     layout->addLayout(controls);
 
     m_previewPlayer = new QMediaPlayer(this);
@@ -90,6 +106,8 @@ ClipWidget::ClipWidget(QWidget *parent) : QWidget(parent)
     });
 
     connect(m_playButton, &QPushButton::clicked, this, [this] { triggerPlay(); });
+    connect(m_inButton, &QPushButton::clicked, this, [this] { emit markInRequested(this); });
+    connect(m_outButton, &QPushButton::clicked, this, [this] { emit markOutRequested(this); });
 }
 
 void ClipWidget::setMedia(const QUrl &url)
@@ -103,6 +121,12 @@ void ClipWidget::setMedia(const QUrl &url)
         m_thumbnailLabel->setText("VIDEO PREVIEW");
         m_nameLabel->setText("Empty clip");
         m_playButton->setEnabled(false);
+        m_inButton->setEnabled(false);
+        m_outButton->setEnabled(false);
+        m_inPoint = 0;
+        m_outPoint = -1;
+        m_duration = 0;
+        m_marksLabel->setText("IN 00:00  |  OUT END");
         setPlaybackProgress(0, 0);
         return;
     }
@@ -110,6 +134,12 @@ void ClipWidget::setMedia(const QUrl &url)
     m_thumbnailLabel->setText("Loading preview...");
     m_nameLabel->setText(QFileInfo(url.toLocalFile()).fileName());
     m_playButton->setEnabled(true);
+    m_inButton->setEnabled(true);
+    m_outButton->setEnabled(true);
+    m_inPoint = 0;
+    m_outPoint = -1;
+    m_duration = 0;
+    m_marksLabel->setText("IN 00:00  |  OUT END");
     setPlaybackProgress(0, 0);
     m_previewPlayer->setSource(url);
     m_previewPlayer->play();
@@ -133,6 +163,7 @@ void ClipWidget::setPlaying(bool playing)
 
 void ClipWidget::setPlaybackProgress(qint64 position, qint64 duration)
 {
+    m_duration = duration;
     if (duration <= 0) {
         m_progressBar->setValue(0);
         m_timeLabel->setText("00:00 / --:--");
@@ -148,12 +179,33 @@ void ClipWidget::setPlaybackProgress(qint64 position, qint64 duration)
     m_timeLabel->setText(formatTime(boundedPosition) + " / " + formatTime(duration));
 }
 
+void ClipWidget::setInPoint(qint64 position)
+{
+    m_inPoint = qBound<qint64>(0, position, m_duration > 0 ? m_duration : position);
+    if (m_outPoint >= 0 && m_outPoint <= m_inPoint)
+        m_outPoint = -1;
+    const auto fmt = [](qint64 ms) { const qint64 s = ms / 1000; return QString("%1:%2").arg(s / 60, 2, 10, QLatin1Char('0')).arg(s % 60, 2, 10, QLatin1Char('0')); };
+    m_marksLabel->setText("IN " + fmt(m_inPoint) + "  |  OUT " + (m_outPoint < 0 ? QString("END") : fmt(m_outPoint)));
+}
+
+void ClipWidget::setOutPoint(qint64 position)
+{
+    const qint64 limit = m_duration > 0 ? m_duration : position;
+    if (position <= m_inPoint) {
+        m_marksLabel->setText("OUT must be after IN");
+        return;
+    }
+    m_outPoint = qBound<qint64>(m_inPoint + 1, position, limit);
+    const auto fmt = [](qint64 ms) { const qint64 s = ms / 1000; return QString("%1:%2").arg(s / 60, 2, 10, QLatin1Char('0')).arg(s % 60, 2, 10, QLatin1Char('0')); };
+    m_marksLabel->setText("IN " + fmt(m_inPoint) + "  |  OUT " + fmt(m_outPoint));
+}
+
 void ClipWidget::triggerPlay()
 {
     if (m_url.isValid() && !m_url.isEmpty()) {
         emit selected(this);
         setPlaying(true);
-        emit playRequested(m_url, m_loopCheck->isChecked());
+        emit playRequested(m_url, m_loopCheck->isChecked(), m_inPoint, m_outPoint);
     }
 }
 

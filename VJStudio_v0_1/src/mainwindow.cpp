@@ -62,6 +62,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
             auto &currentLayer = m_layers[static_cast<size_t>(i)];
             if (currentLayer.activeClip)
                 currentLayer.activeClip->setPlaybackProgress(position, currentLayer.player->duration());
+            if (currentLayer.outPoint >= 0 && position >= currentLayer.outPoint) {
+                if (currentLayer.loop) {
+                    currentLayer.player->setPosition(currentLayer.inPoint);
+                } else {
+                    currentLayer.player->pause();
+                    currentLayer.player->setPosition(currentLayer.outPoint);
+                    if (currentLayer.activeClip)
+                        currentLayer.activeClip->setPlaying(false);
+                }
+            }
         });
         connect(layer.player, &QMediaPlayer::durationChanged, this,
                 [this, i](qint64 duration) {
@@ -80,6 +90,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         });
         connect(layer.player, &QMediaPlayer::mediaStatusChanged, this,
                 [this, i](QMediaPlayer::MediaStatus status) {
+            auto &statusLayer = m_layers[static_cast<size_t>(i)];
+            if (status == QMediaPlayer::LoadedMedia && statusLayer.seekPending) {
+                statusLayer.seekPending = false;
+                statusLayer.player->setPosition(statusLayer.inPoint);
+            }
             if (status == QMediaPlayer::EndOfMedia) {
                 setStatus(QString("Layer %1 reached end of clip").arg(i + 1));
                 auto &endedLayer = m_layers[static_cast<size_t>(i)];
@@ -211,9 +226,27 @@ void MainWindow::buildUi()
         clip->setSlotNumber(i + 1);
         clip->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         m_clipGrid->addWidget(clip, i / 4, i % 4);
-        connect(clip, &ClipWidget::playRequested, this, [this, clip](const QUrl &url, bool loop) {
+        connect(clip, &ClipWidget::playRequested, this, [this, clip](const QUrl &url, bool loop, qint64 inPoint, qint64 outPoint) {
             m_layers[static_cast<size_t>(m_activeLayer)].activeClip = clip;
-            loadMediaIntoLayer(m_activeLayer, url, true, loop);
+            loadMediaIntoLayer(m_activeLayer, url, true, loop, inPoint, outPoint);
+        });
+        connect(clip, &ClipWidget::markInRequested, this, [this](ClipWidget *target) {
+            auto &layer = m_layers[static_cast<size_t>(m_activeLayer)];
+            if (layer.source == target->media() && layer.player->duration() > 0) {
+                target->setInPoint(layer.player->position());
+                setStatus("IN point marked at current playback position.");
+            } else {
+                setStatus("Play this clip on the selected layer before marking IN.");
+            }
+        });
+        connect(clip, &ClipWidget::markOutRequested, this, [this](ClipWidget *target) {
+            auto &layer = m_layers[static_cast<size_t>(m_activeLayer)];
+            if (layer.source == target->media() && layer.player->duration() > 0) {
+                target->setOutPoint(layer.player->position());
+                setStatus("OUT point marked at current playback position.");
+            } else {
+                setStatus("Play this clip on the selected layer before marking OUT.");
+            }
         });
         connect(clip, &ClipWidget::mediaDropped, this, [this, clip](const QUrl &url) {
             clip->setMedia(url);
@@ -327,7 +360,7 @@ void MainWindow::loadSelectedMedia()
     loadMediaIntoLayer(m_activeLayer, QUrl(item->data(Qt::UserRole).toString()), true);
 }
 
-void MainWindow::loadMediaIntoLayer(int layerIndex, const QUrl &url, bool startPlayback, bool loop)
+void MainWindow::loadMediaIntoLayer(int layerIndex, const QUrl &url, bool startPlayback, bool loop, qint64 inPoint, qint64 outPoint)
 {
     if (layerIndex < 0 || layerIndex >= static_cast<int>(m_layers.size()) || !url.isValid())
         return;
@@ -338,8 +371,13 @@ void MainWindow::loadMediaIntoLayer(int layerIndex, const QUrl &url, bool startP
         layer.activeClip = nullptr;
     layer.source = url;
     layer.loop = loop;
+    layer.inPoint = qMax<qint64>(0, inPoint);
+    layer.outPoint = outPoint;
+    layer.seekPending = layer.inPoint > 0;
     layer.player->setLoops(loop ? QMediaPlayer::Infinite : 1);
     layer.player->setSource(url);
+    if (layer.inPoint == 0)
+        layer.player->setPosition(0);
     if (startPlayback)
         layer.player->play();
 

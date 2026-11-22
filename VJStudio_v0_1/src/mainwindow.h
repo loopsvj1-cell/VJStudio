@@ -43,12 +43,15 @@ private:
         QGraphicsVideoItem *video = nullptr;
         QUrl source;
         bool loop = false;
+        qint64 inPoint = 0;
+        qint64 outPoint = -1;
+        bool seekPending = false;
         ClipWidget *activeClip = nullptr;
     };
 
     void buildUi();
     void addClip(const QUrl &url);
-    void loadMediaIntoLayer(int layerIndex, const QUrl &url, bool startPlayback, bool loop = false);
+    void loadMediaIntoLayer(int layerIndex, const QUrl &url, bool startPlayback, bool loop = false, qint64 inPoint = 0, qint64 outPoint = -1);
     void setActiveLayer(int index);
     void setStatus(const QString &message);
     void updatePreviewGeometry();
