@@ -21,6 +21,7 @@ public:
     QUrl media() const { return m_url; }
     QString displayName() const;
     void setSlotNumber(int number);
+    void setPlaying(bool playing);
     void triggerPlay();
 
 protected:
@@ -41,4 +42,5 @@ private:
     QMediaPlayer *m_previewPlayer = nullptr;
     QVideoSink *m_videoSink = nullptr;
     bool m_thumbnailCaptured = false;
+    int m_slotNumber = 0;
 };

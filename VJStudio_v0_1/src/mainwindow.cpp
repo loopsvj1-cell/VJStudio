@@ -3,6 +3,8 @@
 
 #include <QMediaPlayer>
 #include <QAudioOutput>
+#include <QAudioDevice>
+#include <QMediaDevices>
 #include <QGraphicsVideoItem>
 #include <QGraphicsScene>
 #include <QGraphicsView>
@@ -42,6 +44,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         auto &layer = m_layers[static_cast<size_t>(i)];
         layer.player = new QMediaPlayer(this);
         layer.audio = new QAudioOutput(this);
+        layer.audio->setDevice(QMediaDevices::defaultAudioOutput());
         layer.video = new QGraphicsVideoItem();
         layer.video->setPos(0, 0);
         layer.video->setSize(QSizeF(1920, 1080));
@@ -54,14 +57,22 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         layer.player->setAudioOutput(layer.audio);
         layer.player->setVideoOutput(layer.video);
 
+        connect(layer.player, &QMediaPlayer::audioAvailableChanged, this,
+                [this, i](bool available) {
+            if (i == m_activeLayer && m_audioStatus)
+                m_audioStatus->setText(available ? "Audio track detected" : "No audio track detected yet");
+        });
         connect(layer.player, &QMediaPlayer::errorOccurred, this,
                 [this, i](QMediaPlayer::Error, const QString &error) {
             setStatus(QString("Layer %1 playback error: %2").arg(i + 1).arg(error));
         });
         connect(layer.player, &QMediaPlayer::mediaStatusChanged, this,
                 [this, i](QMediaPlayer::MediaStatus status) {
-            if (status == QMediaPlayer::EndOfMedia)
+            if (status == QMediaPlayer::EndOfMedia) {
                 setStatus(QString("Layer %1 reached end of clip").arg(i + 1));
+                if (i == m_activeLayer && m_activeClip)
+                    m_activeClip->setPlaying(false);
+            }
         });
     }
 
@@ -144,6 +155,20 @@ void MainWindow::buildUi()
     m_opacitySlider->setValue(100);
     mixerLayout->addWidget(m_opacitySlider);
     mixerLayout->addSpacing(12);
+    mixerLayout->addWidget(new QLabel("Audio output device"));
+    m_audioDeviceSelector = new QComboBox(mixerBox);
+    const QAudioDevice defaultAudioDevice = QMediaDevices::defaultAudioOutput();
+    const auto audioDevices = QMediaDevices::audioOutputs();
+    for (const QAudioDevice &device : audioDevices) {
+        m_audioDeviceSelector->addItem(device.description(), device.id());
+        if (device.id() == defaultAudioDevice.id())
+            m_audioDeviceSelector->setCurrentIndex(m_audioDeviceSelector->count() - 1);
+    }
+    m_audioDeviceSelector->setEnabled(!audioDevices.isEmpty());
+    mixerLayout->addWidget(m_audioDeviceSelector);
+    m_audioStatus = new QLabel(audioDevices.isEmpty() ? "No audio output device found" : "Audio output ready");
+    m_audioStatus->setWordWrap(true);
+    mixerLayout->addWidget(m_audioStatus);
     mixerLayout->addWidget(new QLabel("Master audio volume"));
     m_volumeSlider = new QSlider(Qt::Horizontal);
     m_volumeSlider->setRange(0, 100);
@@ -178,12 +203,15 @@ void MainWindow::buildUi()
             setStatus(QString("Clip loaded: %1").arg(QFileInfo(url.toLocalFile()).fileName()));
         });
         connect(clip, &ClipWidget::selected, this, [this](ClipWidget *selectedClip) {
+            m_activeClip = selectedClip;
             for (int slot = 0; slot < m_clipGrid->count(); ++slot) {
                 auto *item = qobject_cast<ClipWidget *>(m_clipGrid->itemAt(slot)->widget());
-                if (item)
+                if (item) {
                     item->setStyleSheet(item == selectedClip
                         ? "QWidget#clipWidget { border: 2px solid #a78bfa; background: #292642; border-radius: 7px; }"
                         : "");
+                    item->setPlaying(item == selectedClip);
+                }
             }
         });
         auto *shortcut = new QShortcut(QKeySequence(QString::number(i + 1)), this);
@@ -210,6 +238,20 @@ void MainWindow::buildUi()
         for (auto &layer : m_layers)
             layer.audio->setVolume(volume);
         setStatus(QString("Master audio volume: %1%").arg(value));
+    });
+    connect(m_audioDeviceSelector, qOverload<int>(&QComboBox::currentIndexChanged),
+            this, [this](int index) {
+        if (index < 0)
+            return;
+        const QByteArray selectedId = m_audioDeviceSelector->itemData(index).toByteArray();
+        for (const QAudioDevice &device : QMediaDevices::audioOutputs()) {
+            if (device.id() == selectedId) {
+                for (auto &layer : m_layers)
+                    layer.audio->setDevice(device);
+                setStatus("Audio output: " + device.description());
+                return;
+            }
+        }
     });
     connect(m_muteButton, &QPushButton::clicked, this, [this]() {
         m_audioMuted = !m_audioMuted;
@@ -286,6 +328,8 @@ void MainWindow::loadMediaIntoLayer(int layerIndex, const QUrl &url, bool startP
               .arg(QFileInfo(url.toLocalFile()).fileName()));
     if (m_layerSelector->currentIndex() == layerIndex)
         m_layerPlayButton->setText(startPlayback ? "Pause layer" : "Play layer");
+    if (m_audioStatus && layerIndex == m_activeLayer)
+        m_audioStatus->setText("Checking audio track...");
 }
 
 void MainWindow::setActiveLayer(int index)
@@ -316,6 +360,8 @@ void MainWindow::stopSelectedLayer()
 {
     auto &player = m_layers[static_cast<size_t>(m_activeLayer)].player;
     player->stop();
+    if (m_activeClip)
+        m_activeClip->setPlaying(false);
     m_layerPlayButton->setText("Play layer");
     setStatus(QString("Layer %1 stopped.").arg(m_activeLayer + 1));
 }

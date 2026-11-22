@@ -63,6 +63,9 @@ private:
     QPushButton *m_layerPlayButton = nullptr;
     QSlider *m_volumeSlider = nullptr;
     QPushButton *m_muteButton = nullptr;
+    QComboBox *m_audioDeviceSelector = nullptr;
+    QLabel *m_audioStatus = nullptr;
+    ClipWidget *m_activeClip = nullptr;
     bool m_audioMuted = false;
     QWidget *m_outputWindow = nullptr;
     QGraphicsView *m_outputView = nullptr;

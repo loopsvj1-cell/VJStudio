@@ -107,13 +107,20 @@ QString ClipWidget::displayName() const
 
 void ClipWidget::setSlotNumber(int number)
 {
-    m_playButton->setText(QString("%1  PLAY").arg(number));
+    m_slotNumber = number;
+    setPlaying(false);
+}
+
+void ClipWidget::setPlaying(bool playing)
+{
+    m_playButton->setText(QString("%1  %2").arg(m_slotNumber).arg(playing ? "PLAYING" : "PLAY"));
 }
 
 void ClipWidget::triggerPlay()
 {
     if (m_url.isValid() && !m_url.isEmpty()) {
         emit selected(this);
+        setPlaying(true);
         emit playRequested(m_url, m_loopCheck->isChecked());
     }
 }
